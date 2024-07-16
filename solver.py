@@ -1,9 +1,6 @@
-import sympy
+import sympy, math
 
 def solve(lp):
-    """
-    Determine optimal basis, or that the problem is infeasible or unbounded.
-    """
     lp['outcome'] = 'unsolved'
     find_feasible_basis(lp)
     if lp['outcome'] == 'infeasible':
@@ -14,33 +11,22 @@ def solve(lp):
         compute_shadow_prices(lp)
 
 def compute_dictionary(lp):
-    """
-    Calculate the dictionary coefficients and rcv based on basis lp['B'].
-
-    Update these keys:
-    - lp['B'] gets sorted
-    - lp['N'] computed (complement of B)
-    - lp['solution'] computed using basis
-    - lp['cost'] current solution's cost
-    - lp['dictionary'] coefficients of dictionary (basics in terms of nonbasics)
-    - lp['rcv'] reduced cost vector
-    """
     A = lp['A']
     m, n = A.shape
 
-    # Keep B sorted
+    # keep B sorted
     lp['B'] = list(sorted(lp['B']))
 
-    # Python trick to get N
+    # get N
     lp['N'] = list(set(range(A.cols)) - set(lp['B']))
 
-    # Compute ingredients for dictionary
+    # compute necessary ingredients for dictionary
     A_B = A.extract(range(m), lp['B'])
     A_N = A.extract(range(m), lp['N'])
     c_B = lp['c'].extract(lp['B'], range(1))
     c_N = lp['c'].extract(lp['N'], range(1))
 
-    # Set current basic solution
+    # set current basic solution
     x_B = A_B.inv() * lp['b']
     solution = sympy.zeros(n,1)
     for i in range(len(lp['B'])):
@@ -48,7 +34,7 @@ def compute_dictionary(lp):
     lp['solution'] = solution
     lp['cost'] = solution.dot(lp['c'])
 
-    # Save dictionary and rcv
+    # save dictionary and rcv
     lp['dictionary'] = -A_B.inv() * A_N
     lp['rcv'] = c_N - (A_B.inv() * A_N).T * c_B
 
@@ -76,14 +62,6 @@ def enter_exit(lp):
                     lp['exit'] = j
 
 def improve_current_basis(lp):
-    """
-    Improve current basis (one iteration of simplex method).
-
-    Update dictionary if basis changes.
-
-    If LP is deemed unbounded, set lp['outcome'] = 'unbounded'.
-    If basis is deemed optimal, set lp['outcome'] = 'minimized'.
-    """
     # get enter, exit
     enter_exit(lp)
 
@@ -102,11 +80,6 @@ def improve_current_basis(lp):
         compute_dictionary(lp)
 
 def compute_shadow_prices(lp):
-    """
-    Assuming lp has been solved, compute the resulting shadow prices.
-
-    Store them in lp['marginals'].
-    """
     A = lp['A']
     m, n = A.shape
     A_B = A.extract(range(m), lp['B'])
@@ -167,9 +140,6 @@ def remove_artificial(FPLP):
             move2(FPLP)
 
 def find_feasible_basis(lp):
-    """
-    Determine a feasible basis (phase 1 of simplex method).
-    """
 
     # initialize a separate dictionary for FPLP to prevent mutating the original LP
     FPLP = {}
@@ -217,90 +187,3 @@ def find_feasible_basis(lp):
     # when Phase 1 is complete, pass the optimal basis of FPLP as starting feasible basis for the original lp
     lp['B'] = FPLP['B']
     compute_dictionary(lp)
-
-########################## TEST ##########################
-# Test
-
-lp = {
-  'A': sympy.Matrix([[1,2,2,4],[2,6,4,10]]),
-  'b': sympy.Matrix([22,50]),
-  'c': sympy.Matrix([8,8,1,1]),
-}
-
-# Setting feasible basis
-lp['B'] = [0,1]
-compute_dictionary(lp)
-
-improve_current_basis(lp)
-print(lp['B']) # [1, 2]
-
-improve_current_basis(lp)
-print(lp['B']) # [2, 3]
-
-improve_current_basis(lp)
-print(lp['B']) # [2, 3]
-
-print(lp['outcome']) # minimized
-
-lp = {
-  'A': sympy.Matrix([[1,0,2,-1],[2,1,2,-1]]),
-  'b': sympy.Matrix([10,25]),
-  'c': sympy.Matrix([1,1,1,-1])
-}
-
-# Setting feasible basis
-lp['B'] = [0,1]
-compute_dictionary(lp)
-
-improve_current_basis(lp)
-print(lp['B']) # [0, 3]
-
-improve_current_basis(lp)
-print(lp['B']) # [0, 3]
-
-print(lp['outcome']) # unbounded
-
-lp = {
-  'A': sympy.Matrix([[2,1,-1,0,0],[2,3,0,-1,0],[2,2,0,0,-1]]),
-  'b': sympy.Matrix([12,18,13]),
-  'c': sympy.Matrix([1,1,0,0,0])
-}
-lp['B'] = [0,1,4]
-compute_shadow_prices(lp)
-sympy.pprint(lp['marginals'])
-
-# Output:
-# ⎡1/4⎤
-# ⎢   ⎥
-# ⎢1/4⎥
-# ⎢   ⎥
-# ⎣ 0 ⎦
-
-lp = {
-  'c': sympy.Matrix([1,1,0,0,0]),
-  'A': sympy.Matrix([[2,1,-1,0,0],[2,3,0,-1,0],[2,2,0,0,-1]]),
-  'b': sympy.Matrix([12,18,13])
-}
-solve(lp)
-print(list(lp['solution']))
-# Output: [9/2, 3, 0, 0, 2]
-
-lp = {
-  'A': sympy.Matrix([[10,2,3],[-14,-1,0]]),
-  'b': sympy.Matrix([5,-7]),
-  'c': sympy.Matrix([2,4,2])
-}
-solve(lp)
-print(lp['cost'], list(lp['solution']))
-
-# Output: 1 [1/2, 0, 0]
-
-lp = {
-  'A': sympy.Matrix([[1,2,-4,1],[1,3,-1,1],[0,-1,-3,0]]),
-  'b': sympy.Matrix([5,5,0]),
-  'c': sympy.Matrix([2,1,3,1])
-}
-solve(lp)
-print(lp['cost'], list(lp['solution']))
-
-# Output: 5 [0, 0, 0, 5]
